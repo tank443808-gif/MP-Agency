@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "792956730197",
+    "firebase_url": "https://mp-agency-default-rtdb.firebaseio.com",
+    "project_id": "mp-agency",
+    "storage_bucket": "mp-agency.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:792956730197:android:8053f7ddb104bb188dcddc",
+        "android_client_info": {
+          "package_name": "com.mpagency.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCRRUeX6VKkJyfLnfA7uswKIlBrieL8ifU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

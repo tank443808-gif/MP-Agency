@@ -1,0 +1,106 @@
+rules_version = '2';
+
+// 다먹음 Firestore 보안 규칙
+// 학습·시연용 규칙이에요. 실제 서비스라면 재고 차감·알림 보내기 같은
+// "다른 사람 문서를 고치는 일"은 서버(Cloud Functions)로 옮기는 게 안전해요.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isMe(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    // 매장 주인 (주인이 없는 예시 매장이면 null)
+    function storeOwner(storeId) {
+      return get(/databases/$(database)/documents/stores/$(storeId)).data.get('ownerId', null);
+    }
+
+    // 내 매장이거나, 아직 주인이 없는 예시 매장
+    function canManageStore(storeId) {
+      let owner = storeOwner(storeId);
+      return owner == request.auth.uid || owner == null;
+    }
+
+    // ① 회원 정보: 본인 문서만, 역할(role)은 가입 후 변경 불가
+    match /users/{uid} {
+      allow read: if isMe(uid);
+      allow create: if isMe(uid)
+        && request.resource.data.role in ['CUSTOMER', 'SELLER'];
+      allow update: if isMe(uid)
+        && request.resource.data.role == resource.data.role;
+      allow delete: if false;
+    }
+
+    // ② 매장: 로그인하면 누구나 보기. 만들기·고치기는 주인만.
+    //    주인이 없는 예시 매장은 같은 이름으로 가입한 사장님이 맡을 수 있음.
+    match /stores/{storeId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && (request.resource.data.ownerId == request.auth.uid
+            || request.resource.data.ownerId == null);
+      allow update: if signedIn()
+        && (resource.data.ownerId == request.auth.uid
+            || (resource.data.ownerId == null
+                && request.resource.data.ownerId == request.auth.uid));
+      allow delete: if false;
+    }
+
+    // ③ 상품: 로그인하면 누구나 보기. 등록·수정은 매장 주인.
+    //    손님은 예약·취소할 때 재고(stockQuantity)·판매상태(status)만 바꿀 수 있음.
+    match /products/{productId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && canManageStore(request.resource.data.storeId)
+        && request.resource.data.discountPrice >= 0
+        && request.resource.data.stockQuantity >= 0;
+      allow update: if signedIn() && (
+        canManageStore(resource.data.storeId)
+        || (request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['stockQuantity', 'status', 'updatedAt'])
+            && request.resource.data.stockQuantity >= 0)
+      );
+      allow delete: if false;
+    }
+
+    // ④⑤ 예약 (예약 상품 정보 포함): 예약한 손님과 매장 주인만
+    match /reservations/{reservationId} {
+      allow read, update: if signedIn()
+        && (resource.data.userId == request.auth.uid
+            || resource.data.storeOwnerId == request.auth.uid);
+      allow create: if signedIn()
+        && request.resource.data.userId == request.auth.uid;
+      allow delete: if false;
+    }
+
+    // ⑦ 알림: 받는 사람만 보고 읽음 처리. 예약하면 사장님께 보내야 해서 만들기는 로그인한 누구나.
+    match /notifications/{notificationId} {
+      allow read, update: if signedIn()
+        && resource.data.userId == request.auth.uid;
+      allow create: if signedIn();
+      allow delete: if false;
+    }
+
+    // 찜: 본인 찜만 만들고 지움. 사장님이 새 상품 추천 알림을 보내려면
+    // "이 매장을 찜한 사람"을 알아야 해서 읽기는 로그인한 누구나.
+    match /favorites/{favoriteId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.userId == request.auth.uid
+        && favoriteId == request.auth.uid + '_' + request.resource.data.storeId;
+      allow delete: if signedIn() && resource.data.userId == request.auth.uid;
+      allow update: if false;
+    }
+
+    // ⑨ 행동 기록 (AI 추천): 본인 기록만
+    match /user_behavior_events/{eventId} {
+      allow read: if signedIn() && resource.data.userId == request.auth.uid;
+      allow create: if signedIn()
+        && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if false;
+    }
+  }
+}
