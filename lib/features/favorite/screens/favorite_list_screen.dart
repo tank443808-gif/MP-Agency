@@ -4,6 +4,7 @@ import 'package:mp_agency/core/theme/app_theme.dart';
 import 'package:mp_agency/core/utils/formatters.dart';
 import 'package:mp_agency/features/favorite/services/favorite_service.dart';
 import 'package:mp_agency/features/favorite/widgets/favorite_button.dart';
+import 'package:mp_agency/features/location/services/location_service.dart';
 import 'package:mp_agency/features/product/services/product_service.dart';
 import 'package:mp_agency/features/store/screens/store_screen.dart';
 import 'package:mp_agency/features/store/services/store_service.dart';
@@ -55,6 +56,16 @@ class FavoriteListScreen extends StatelessWidget {
                       final items = onSale
                           .where((p) => p.storeId == s.id)
                           .toList();
+                      // 내 위치에서 매장까지 거리
+                      final loc = LocationService.instance.last;
+                      final distance = loc == null
+                          ? null
+                          : LocationService.instance.distanceMeters(
+                              loc.latitude,
+                              loc.longitude,
+                              s.latitude,
+                              s.longitude,
+                            );
                       final minPrice = items.isEmpty
                           ? null
                           : items
@@ -97,10 +108,17 @@ class FavoriteListScreen extends StatelessWidget {
                                           CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          s.category.label,
-                                          style: const TextStyle(
+                                          [
+                                            s.category.label,
+                                            s.isOpen ? '영업 중' : '영업 준비 중',
+                                            if (distance != null)
+                                              formatDistance(distance),
+                                          ].join(' · '),
+                                          style: TextStyle(
                                             fontSize: 11,
-                                            color: AppColors.deepGreen,
+                                            color: s.isOpen
+                                                ? AppColors.deepGreen
+                                                : AppColors.subText,
                                             fontWeight: FontWeight.w700,
                                           ),
                                         ),

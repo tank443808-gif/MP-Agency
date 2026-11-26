@@ -29,9 +29,22 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen> {
   @override
   void initState() {
     super.initState();
-    // 판매자가 수령 확인하면 바로 반영
+    // 판매자가 수령 확인·취소하면 바로 반영
     _sub = ReservationService.instance.watchById(_r.id).listen((r) {
-      if (r != null && mounted) setState(() => _r = r);
+      if (r == null || !mounted) return;
+      final pickedUpBySeller =
+          _r.status == ReservationStatus.reserved &&
+          r.status == ReservationStatus.pickedUp &&
+          !_pickingUp;
+      setState(() => _r = r);
+      // 사장님이 매장에서 수령 확인 → 손님 화면도 수령 완료 창으로
+      if (pickedUpBySeller) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => PickupCompleteScreen(reservation: r),
+          ),
+        );
+      }
     });
   }
 

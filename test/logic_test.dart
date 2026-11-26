@@ -201,6 +201,25 @@ void main() {
     });
   });
 
+  group('매장 위치', () {
+    test('매장 위치를 바꾸면 그 매장 상품의 픽업 위치도 바뀜', () {
+      final p = _newProduct();
+      final store = StoreService.instance.storeOf(_seller);
+      final moved = store.copyWith(
+        latitude: 37.5,
+        longitude: 127.2,
+        address: '새 주소 1층',
+      );
+      StoreService.instance.update(moved);
+      ProductService.instance.syncStore(moved);
+      final after = ProductService.instance.findById(p.id)!;
+      expect(after.storeLatitude, 37.5);
+      expect(after.storeLongitude, 127.2);
+      expect(after.storeAddress, '새 주소 1층');
+      expect(StoreService.instance.findById(store.id)!.latitude, 37.5);
+    });
+  });
+
   group('계산', () {
     test('가격 범위 필터 (SRCH-003)', () {
       const r = PriceRange(1000, 3000);

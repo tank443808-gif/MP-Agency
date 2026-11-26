@@ -6,6 +6,7 @@ import 'package:mp_agency/features/mypage/screens/profile_screen.dart';
 import 'package:mp_agency/features/product/models/product.dart';
 import 'package:mp_agency/features/product/services/product_service.dart';
 import 'package:mp_agency/features/store/models/store.dart';
+import 'package:mp_agency/features/store/screens/store_location_screen.dart';
 import 'package:mp_agency/features/store/services/store_service.dart';
 
 /// 판매자 내 가게 탭: "우리 매장 소식, 한눈에 챙겨요."
@@ -225,13 +226,13 @@ class MyStoreScreen extends StatelessWidget {
                 ),
               ),
               _EditTile(
-                label: '주소',
+                label: '매장 위치 · 주소',
                 value: s.address,
-                onTap: () => _edit(
-                  context,
-                  title: '주소',
-                  value: s.address,
-                  apply: (v) => s.copyWith(address: v),
+                action: '지도에서 설정',
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => StoreLocationScreen(store: s),
+                  ),
                 ),
               ),
               _EditTile(
@@ -324,11 +325,15 @@ class _EditTile extends StatelessWidget {
     required this.label,
     required this.value,
     required this.onTap,
+    this.action = '수정',
   });
 
   final String label;
   final String value;
   final VoidCallback onTap;
+
+  /// 오른쪽 버튼 글자
+  final String action;
 
   @override
   Widget build(BuildContext context) {
@@ -353,9 +358,9 @@ class _EditTile extends StatelessWidget {
             fontWeight: FontWeight.w700,
           ),
         ),
-        trailing: const Text(
-          '수정',
-          style: TextStyle(
+        trailing: Text(
+          action,
+          style: const TextStyle(
             color: AppColors.orange,
             fontWeight: FontWeight.w700,
           ),

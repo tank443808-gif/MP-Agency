@@ -3,7 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:mp_agency/core/theme/app_theme.dart';
 import 'package:mp_agency/core/utils/formatters.dart';
 import 'package:mp_agency/features/notification/models/app_notification.dart';
+import 'package:mp_agency/features/navigation/screens/seller_main_screen.dart';
 import 'package:mp_agency/features/notification/services/notification_service.dart';
+import 'package:mp_agency/features/product/screens/product_detail_screen.dart';
+import 'package:mp_agency/features/product/services/product_service.dart';
+import 'package:mp_agency/features/reservation/screens/reservation_detail_screen.dart';
+import 'package:mp_agency/features/reservation/services/reservation_service.dart';
 
 /// 알림 목록. 화면을 열면 모두 읽음 처리.
 class NotificationScreen extends StatefulWidget {
@@ -31,6 +36,47 @@ class _NotificationScreenState extends State<NotificationScreen> {
     );
   }
 
+  void _snack(String text) => ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(content: Text(text)));
+
+  /// 알림을 누르면 관련 화면으로 (notifications.reference_id)
+  /// - 추천 알림 → 상품 상세
+  /// - 내 예약 알림 → 예약 상세
+  /// - 사장님 알림(새 예약·취소·노쇼) → 예약 관리 탭
+  void _open(AppNotification n) {
+    final ref = n.referenceId!;
+    if (n.type == NotificationType.recommendation) {
+      final p = ProductService.instance.findById(ref);
+      if (p == null || !p.isAvailable(DateTime.now())) {
+        _snack('이미 판매가 끝난 음식이에요.');
+        return;
+      }
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) =>
+              ProductDetailScreen(product: p, userId: widget.userId),
+        ),
+      );
+      return;
+    }
+    final r = ReservationService.instance.findById(ref);
+    if (r == null) {
+      _snack('예약 정보를 찾을 수 없어요.');
+      return;
+    }
+    if (r.userId == widget.userId) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ReservationDetailScreen(reservation: r),
+        ),
+      );
+    } else {
+      SellerTab.current.value = SellerTab.reservations;
+      Navigator.of(context).pop();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -55,7 +101,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
             itemBuilder: (context, i) {
               final n = items[i];
               final isNew = _unread.contains(n.id);
-              return Container(
+              final card = Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   color: isNew ? Colors.white : AppColors.cream,
@@ -104,6 +150,11 @@ class _NotificationScreenState extends State<NotificationScreen> {
                       ),
                   ],
                 ),
+              );
+              return InkWell(
+                onTap: n.referenceId == null ? null : () => _open(n),
+                borderRadius: BorderRadius.circular(16),
+                child: card,
               );
             },
           );

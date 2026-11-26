@@ -39,6 +39,7 @@ import 'package:mp_agency/features/reservation/services/reservation_service.dart
 import 'package:mp_agency/features/seller_dashboard/screens/seller_dashboard_screen.dart';
 import 'package:mp_agency/features/store/models/store.dart';
 import 'package:mp_agency/features/store/screens/my_store_screen.dart';
+import 'package:mp_agency/features/store/screens/store_location_screen.dart';
 import 'package:mp_agency/features/store/screens/store_screen.dart';
 import 'package:mp_agency/features/store/services/store_service.dart';
 
@@ -184,6 +185,7 @@ void main() {
     ),
     '예약 관리': () => SellerReservationScreen(store: store()),
     '내 가게': () => MyStoreScreen(storeId: store().id),
+    '매장 위치 설정': () => StoreLocationScreen(store: store()),
   };
 
   for (final width in _widths) {

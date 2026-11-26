@@ -249,6 +249,8 @@ class ProductService {
           storeName: store.name,
           storeAddress: store.address,
           pickupGuide: store.pickupGuide,
+          storeLatitude: store.latitude,
+          storeLongitude: store.longitude,
         );
         ids.add(_products[i].id);
       }
@@ -261,6 +263,8 @@ class ProductService {
           'storeName': store.name,
           'storeAddress': store.address,
           'pickupGuide': store.pickupGuide,
+          'storeLatitude': store.latitude,
+          'storeLongitude': store.longitude,
         });
       }
       await batch.commit();

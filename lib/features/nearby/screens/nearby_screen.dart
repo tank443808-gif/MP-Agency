@@ -12,6 +12,7 @@ import 'package:mp_agency/features/product/models/product.dart';
 import 'package:mp_agency/features/product/screens/product_detail_screen.dart';
 import 'package:mp_agency/features/product/services/product_service.dart';
 import 'package:mp_agency/features/product/widgets/product_card.dart';
+import 'package:mp_agency/features/recommendation/services/recommendation_service.dart';
 import 'package:mp_agency/features/store/models/store.dart';
 import 'package:mp_agency/features/store/screens/store_screen.dart';
 import 'package:mp_agency/features/store/services/store_service.dart';
@@ -32,8 +33,12 @@ class NearbyScreen extends StatefulWidget {
 class _StoreSpot {
   _StoreSpot(this.store, this.products, this.distance);
   final Store store;
-  final List<Product> products;
+  List<Product> products;
   final int distance;
+
+  /// 맞춤 추천 점수 (이 매장 상품 중 가장 높은 점수)와 이유
+  double score = 0;
+  String? reason;
 
   int get minPrice =>
       products.map((p) => p.discountPrice).reduce((a, b) => a < b ? a : b);
@@ -53,6 +58,9 @@ class _NearbyScreenState extends State<NearbyScreen> {
   ProductCategory? _category;
   String? _selectedStoreId;
   bool _mapReady = false;
+
+  /// true: 추천 순 (선호 음식 우선), false: 가까운 순
+  bool _byRecommend = false;
   DateTime _now = DateTime.now();
 
   @override
@@ -119,7 +127,34 @@ class _NearbyScreenState extends State<NearbyScreen> {
       spots.add(_StoreSpot(store, items, d));
     }
     spots.sort((a, b) => a.distance.compareTo(b.distance));
+    if (_byRecommend) _applyRecommendation(spots);
     return spots;
+  }
+
+  /// 추천 순: AI 맞춤 추천 점수(선호 카테고리·가격대·할인율·마감·거리)로
+  /// 매장과 매장 안 음식을 정렬 (기능명세 AI-003)
+  void _applyRecommendation(List<_StoreSpot> spots) {
+    final distanceOf = {
+      for (final s in spots)
+        for (final p in s.products) p.id: s.distance,
+    };
+    final picks = RecommendationService.instance.recommend(
+      userId: widget.userId,
+      products: [for (final s in spots) ...s.products],
+      now: DateTime.now(),
+      distanceOf: (p) => distanceOf[p.id],
+      limit: 1000,
+    );
+    final byId = {for (final r in picks) r.product.id: r};
+    for (final s in spots) {
+      s.products.sort(
+        (a, b) => (byId[b.id]?.score ?? 0).compareTo(byId[a.id]?.score ?? 0),
+      );
+      final best = byId[s.products.first.id];
+      s.score = best?.score ?? 0;
+      s.reason = best?.reason;
+    }
+    spots.sort((a, b) => b.score.compareTo(a.score));
   }
 
   /// 매장 선택: 지도에서 강조하고, 내 위치와 매장이 함께 보이게 이동
@@ -335,7 +370,14 @@ class _NearbyScreenState extends State<NearbyScreen> {
               else ...[
                 Row(
                   children: [
-                    Text('지금 픽업 가능한 매장', style: AppFonts.display(size: 18)),
+                    Flexible(
+                      child: Text(
+                        '지금 픽업 가능한 매장',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppFonts.display(size: 18),
+                      ),
+                    ),
                     const SizedBox(width: 6),
                     Text(
                       '${spots.length}',
@@ -345,9 +387,9 @@ class _NearbyScreenState extends State<NearbyScreen> {
                       ),
                     ),
                     const Spacer(),
-                    const Text(
-                      '가까운 순',
-                      style: TextStyle(fontSize: 12, color: AppColors.subText),
+                    _SortToggle(
+                      byRecommend: _byRecommend,
+                      onChanged: (v) => setState(() => _byRecommend = v),
                     ),
                   ],
                 ),
@@ -654,6 +696,29 @@ class _StoreTile extends StatelessWidget {
                           color: AppColors.urgent,
                         ),
                       ),
+                      if (spot.reason != null) ...[
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.paleGreen,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '✨ ${spot.reason}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.deepGreen,
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -663,6 +728,45 @@ class _StoreTile extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// "가까운 순 | 추천 순" 정렬 전환
+class _SortToggle extends StatelessWidget {
+  const _SortToggle({required this.byRecommend, required this.onChanged});
+
+  final bool byRecommend;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget item(String label, bool value) {
+      final on = byRecommend == value;
+      return InkWell(
+        onTap: () => onChanged(value),
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: on ? FontWeight.w800 : FontWeight.w500,
+              color: on ? AppColors.orange : AppColors.subText,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        item('가까운 순', false),
+        const Text('|', style: TextStyle(color: AppColors.border)),
+        item('추천 순', true),
+      ],
     );
   }
 }

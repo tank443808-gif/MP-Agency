@@ -125,27 +125,60 @@ class LocationService {
     status: status,
   );
 
-  /// 위도·경도 → "시 · 동" 형태 이름.
-  ///
-  /// OpenStreetMap Nominatim(무료) 사용. 이용 정책상 초당 1회 이하로만 호출해야 하며,
+  /// 위도·경도 → 주소 정보 (OpenStreetMap Nominatim, 무료).
+  /// 이용 정책상 초당 1회 이하로만 호출해야 하며,
   /// 실제 서비스 출시 때는 카카오 로컬 API 등으로 바꾸는 것을 권장.
+  Future<Map<String, dynamic>?> _reverse(
+    double lat,
+    double lng,
+    int zoom,
+  ) async {
+    final uri = Uri.https('nominatim.openstreetmap.org', '/reverse', {
+      'format': 'jsonv2',
+      'lat': '$lat',
+      'lon': '$lng',
+      'zoom': '$zoom',
+      'accept-language': 'ko',
+    });
+    final res = await http
+        .get(uri, headers: kIsWeb ? null : {'User-Agent': 'damukeum-app'})
+        .timeout(const Duration(seconds: 8));
+    if (res.statusCode != 200) return null;
+    return (jsonDecode(res.body) as Map<String, dynamic>)['address']
+        as Map<String, dynamic>?;
+  }
+
+  /// 위도·경도 → 도로명 주소 (예: "경기도 성남시 중원구 광명로 377").
+  /// 매장 위치를 지도에서 고를 때 사용. 못 찾으면 null.
+  Future<String?> fullAddress(double lat, double lng) async {
+    try {
+      final a = await _reverse(lat, lng, 18);
+      if (a == null) return null;
+      String? v(String k) {
+        final x = a[k];
+        return x is String && x.isNotEmpty ? x : null;
+      }
+
+      final road = v('road');
+      final parts = [
+        v('province') ?? v('state'),
+        v('city') ?? v('county'),
+        v('borough'),
+        road == null
+            ? (v('quarter') ?? v('suburb'))
+            : [road, ?v('house_number')].join(' '),
+      ].whereType<String>().toList();
+      return parts.isEmpty ? null : parts.join(' ');
+    } catch (e) {
+      debugPrint('주소 변환 실패: $e');
+      return null;
+    }
+  }
+
+  /// 위도·경도 → "시 · 동" 형태 이름.
   Future<String?> _addressLabel(double lat, double lng) async {
     try {
-      final uri = Uri.https('nominatim.openstreetmap.org', '/reverse', {
-        'format': 'jsonv2',
-        'lat': '$lat',
-        'lon': '$lng',
-        'zoom': '16',
-        'accept-language': 'ko',
-      });
-      final res = await http
-          .get(uri, headers: kIsWeb ? null : {'User-Agent': 'damukeum-app'})
-          .timeout(const Duration(seconds: 8));
-      if (res.statusCode != 200) return null;
-
-      final address =
-          (jsonDecode(res.body) as Map<String, dynamic>)['address']
-              as Map<String, dynamic>?;
+      final address = await _reverse(lat, lng, 16);
       if (address == null) return null;
 
       String? pick(List<String> keys) {

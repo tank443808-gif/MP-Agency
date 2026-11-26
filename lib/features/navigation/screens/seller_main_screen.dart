@@ -15,6 +15,17 @@ import 'package:mp_agency/features/store/models/store.dart';
 import 'package:mp_agency/features/store/screens/my_store_screen.dart';
 import 'package:mp_agency/features/store/services/store_service.dart';
 
+/// 판매자 하단 탭 번호
+class SellerTab {
+  static const dashboard = 0;
+  static const products = 1;
+  static const reservations = 2;
+  static const store = 3;
+
+  /// 다른 화면에서 탭을 바꿀 때 사용 (예: 알림 → 예약 관리)
+  static final current = ValueNotifier<int>(dashboard);
+}
+
 /// 판매자 하단 탭: 대시보드 · 상품 관리 · 예약 관리 · 내 가게
 class SellerMainScreen extends StatefulWidget {
   const SellerMainScreen({super.key, required this.user});
@@ -26,7 +37,7 @@ class SellerMainScreen extends StatefulWidget {
 }
 
 class _SellerMainScreenState extends State<SellerMainScreen> {
-  int _index = 0;
+  int _index = SellerTab.dashboard;
 
   /// 로그인한 판매자의 매장 (없으면 회원가입 때 입력한 매장명으로 만듦)
   late final String _storeId = StoreService.instance.storeOf(widget.user).id;
@@ -37,6 +48,8 @@ class _SellerMainScreenState extends State<SellerMainScreen> {
   @override
   void initState() {
     super.initState();
+    SellerTab.current.value = SellerTab.dashboard;
+    SellerTab.current.addListener(_onTabRequested);
     ProfileService.instance.start(widget.user);
     ReservationService.instance.checkDeadlines();
     _deadlineTimer = Timer.periodic(
@@ -47,9 +60,14 @@ class _SellerMainScreenState extends State<SellerMainScreen> {
 
   @override
   void dispose() {
+    SellerTab.current.removeListener(_onTabRequested);
     _deadlineTimer.cancel();
     super.dispose();
   }
+
+  void _onTabRequested() => setState(() => _index = SellerTab.current.value);
+
+  void _select(int i) => SellerTab.current.value = i;
 
   @override
   Widget build(BuildContext context) {
@@ -66,7 +84,7 @@ class _SellerMainScreenState extends State<SellerMainScreen> {
           SellerDashboardScreen(
             user: widget.user,
             store: store,
-            onGoTab: (i) => setState(() => _index = i),
+            onGoTab: _select,
           ),
           ProductManageScreen(store: store),
           SellerReservationScreen(store: store),
@@ -93,7 +111,7 @@ class _SellerMainScreenState extends State<SellerMainScreen> {
               : null,
           bottomNavigationBar: NavigationBar(
             selectedIndex: _index,
-            onDestinationSelected: (i) => setState(() => _index = i),
+            onDestinationSelected: _select,
             backgroundColor: Colors.white,
             indicatorColor: AppColors.peach,
             labelTextStyle: WidgetStateProperty.resolveWith(
